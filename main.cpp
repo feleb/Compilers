@@ -21,6 +21,9 @@ class RegularDefinition : public RegularExpressionTokens{
 			definitionName = name;
 		}
 
+        string getDefinitionName (){
+            return definitionName;
+        }
 		void addStrings(string str){
 			if(str.length() == 1){
 				chars.set(str[0]);
@@ -147,54 +150,104 @@ class NFA{
         RegularDefinition epsilon;
         stack< pair <RegularDefinition,Node> >s;
         int index =0;
-
-
+        RegularDefinition trivial;
 
 	public:
 		void setExpressions(vector<RegularExpressionTokens*> rE) {
 			expression = rE;
 		}
-
 		Node getStartingNode() {
 			return startingPoint;
 		}
 		void convertToNFA(){
 			epsilon.setEpsilon(true);
+			epsilon.setDefinitionName("Epsilon");
 			for(int i=0;i<expression.size();i++){
 				if((*expression[i]).getType()=="Def"){
-					RegularDefinition* temp= (RegularDefinition*) &(expression[i]);
+
+					RegularDefinition* temp= (RegularDefinition*) &(*expression[i]);
 					Node first= Node(index++);
 					Node second= Node(index++);
-
 					first.transition.push_back(make_pair( *temp,second));
 					s.push(make_pair(*temp ,first));
 				}
 				else {
-					RegularSymbols* temp= (RegularSymbols*) &(expression[i]);
+					RegularSymbols* temp= (RegularSymbols*) &(*expression[i]);
 					if(temp->getSymbol()=='|'){
-						pair<RegularDefinition,Node> one=s.top();
+						pair<RegularDefinition,Node> two=s.top();
 						s.pop();
-						pair<RegularDefinition,Node> two = s.top();
+						pair<RegularDefinition,Node> one = s.top();
 						s.pop();
-						oring(one.second , one.second.transition[0].second , two.second ,two.second.transition[0].second);
+						oring(&(one.second) , &(one.second.transition[0].second) , &(two.second) ,&(two.second.transition[0].second));
+					}
+					else if(temp->getSymbol()=='*'){
+                        pair<RegularDefinition,Node> one=s.top();
+                        s.pop();
+                        if(index==2){
+                            startingPoint=one.second;
+                            endingPoint=one.second.transition[0].second;
+                            cout<<endingPoint.getLabel();
+                            cout<<"here";
+                        }
+                        kleen_clouser(&startingPoint,&endingPoint);
+					}
+					else if(temp->getSymbol()=='+'){
+                        pair<RegularDefinition,Node> one=s.top();
+                        if(index==2){
+                            startingPoint=one.second;
+                            endingPoint=startingPoint.transition[0].second;
+                        }
+                        s.pop();
+                        positive_clouser(one.second,endingPoint);
 					}
 				}
 			}
-
+          //  cout<<index;
 		}
-		void oring (Node startA , Node endA , Node startB , Node endB){
-			Node temp1 =  Node(index++);
+		void oring (Node* startA , Node* endA , Node* startB , Node* endB){
+			//Node* temp = &endA;
+			//Node* tempx = &endB;
+
+			Node* temp1 = new Node(index++);
+			Node* temp2 =  new Node(index++);
+			//temp->transition.push_back(make_pair(epsilon , temp2));
+			//tempx->transition.push_back(make_pair(epsilon , temp2));
+//
+            endA->transition.push_back(make_pair(epsilon , *temp2));
+            endB->transition.push_back(make_pair(epsilon , *temp2));
+            cout<<"here = "<<startA->transition[0].second.transition.size()<<endl;
+            cout<<"here2 = "<<endA->transition.size()<<endl;
+
+            temp1->transition.push_back(make_pair(epsilon , *startA));
+            temp1->transition.push_back(make_pair(epsilon , *startB));
+
+
+            startingPoint = *temp1;
+            endingPoint = *temp2;
+
+            s.push(make_pair(trivial,startingPoint));
+		}
+		void kleen_clouser(Node* startA , Node* endA  ){
+            Node* temp1 = new Node(index++);
+			Node* temp2 =  new Node(index++);
+			endA->transition.push_back(make_pair(epsilon,*startA));
+			endA->transition.push_back(make_pair(epsilon,*temp2));
+			temp1->transition.push_back(make_pair(epsilon,endA->transition[endA->transition.size()-1].second));
+			temp1->transition.push_back(make_pair(epsilon,*temp2));
+			startingPoint=*temp1;
+			endingPoint=*temp2;
+			s.push(make_pair(trivial,startingPoint));
+        }
+        void positive_clouser(Node startA , Node endA  ){
+            Node temp1 =  Node(index++);
 			Node temp2 =  Node(index++);
-            temp1.transition.push_back(make_pair(epsilon , startA));
-            temp1.transition.push_back(make_pair(epsilon , startB));
-            endA.transition.push_back(make_pair(epsilon , temp2));
-            endB.transition.push_back(make_pair(epsilon , temp2));
-            startingPoint = temp1;
-            endingPoint = temp2;
-
-		}
-
-
+			endA.transition.push_back(make_pair(epsilon,startA));
+			temp1.transition.push_back(make_pair(epsilon,startA));
+			endA.transition.push_back(make_pair(epsilon,temp2));
+			startingPoint=temp1;
+			endingPoint=temp2;
+			s.push(make_pair(trivial,startingPoint));
+        }
 };
 
 
@@ -216,6 +269,20 @@ void exitWithMessage(string msg){
 	exit(9);
 }
 */
+bool vis[100];
+void DFS(Node Start ,bool vis[]){
+    cout<<Start.getLabel()<<"  "<<Start.transition.size()<<endl;
+  //cout<<Start.getLabel()<<endl;
+    vis[Start.getLabel()]=true;
+    for(int i=0;i<Start.transition.size();i++){
+        if(!vis[Start.transition[i].second.getLabel()]){
+
+                //cout<<Start.getLabel()<<"  "<< Start.transition[i].first.getDefinitionName() <<"  "<<Start.transition[i].second.getLabel()<<endl;
+
+                DFS(Start.transition[i].second,vis);
+        }
+    }
+}
 int main(){
 
 	/*if(argc != 3){
@@ -229,13 +296,21 @@ int main(){
 	}
 	cout << "Hello, World" << endl;*/
 
-
+        fill(vis,vis+100,false);
 		RegularDefinition letter;
-		//letter.setDefinitionName("letter");
+        letter.setDefinitionName("letter");
+
 		RegularDefinition digit ;
-		RegularSymbols Or = RegularSymbols('|');
-		vector<RegularExpressionTokens*> v ={(RegularExpressionTokens*)(&letter) ,(RegularExpressionTokens*)(&digit),(RegularExpressionTokens*)(&Or)};
+		digit.setDefinitionName("digit");
+
+        RegularDefinition epsilon ;
+        epsilon.setDefinitionName("Epsilon");
+
+		RegularSymbols Or = RegularSymbols('*');
+		vector<RegularExpressionTokens*> v ={(RegularExpressionTokens*)(&digit),(RegularExpressionTokens*)(&Or)};
 		NFA nfa;
+		nfa.setExpressions(v);
 		nfa.convertToNFA ();
-	return 0;
+        DFS(nfa.getStartingNode(),vis);
+        return 0;
 }
